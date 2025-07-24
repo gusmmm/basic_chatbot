@@ -5,9 +5,16 @@ services:
       - ./:/app
     ports:
       - "8501:8501"
+    env_file:
+      - .env
     environment:
-      - OPENROUTER_API_KEY
-      - BASE_URL
-      - MODEL_NAME
+      # Required variables
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - BASE_URL=${BASE_URL}
+      # Optional - default model (if not set, first model from MODELS.txt will be used)
+      - MODEL_NAME=${MODEL_NAME:-}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8501"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
