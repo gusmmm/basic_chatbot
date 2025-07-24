@@ -1,0 +1,4 @@
+# these are the models you can chose from
+qwen/qwen3-235b-a22b-07-25:free
+moonshotai/kimi-k2:free
+tngtech/deepseek-r1t2-chimera:free
