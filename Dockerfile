@@ -2,13 +2,17 @@ FROM python:3.12-slim
 
 WORKDIR /app
 # Copy application files
+
+RUN pip install uv
+
+COPY pyproject.toml ./
+
+# ✅ BEST: Use a cache mount to persist the uv cache directory
+# The target path `/root/.cache/uv` is the default cache location for uv.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --system .
+
 COPY . .
-
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-
-
 # Expose the port that Streamlit runs on
 EXPOSE 8501
 
