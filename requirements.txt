@@ -1,4 +1,6 @@
-PyPDF2
 langchain-openai
 langchain
 streamlit
+# PDF processing with Docling
+docling
+python-dotenv

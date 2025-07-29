@@ -278,60 +278,244 @@ with tab1:
 
 # --- PDF Monger Tab ---
 with tab2:
-    import PyPDF2
+    from pdf_processor.main_pdf_processor import PDFProcessor
+    import tempfile
+    import json
 
-    st.title("PDF Monger")
+    st.title("PDF Monger - Advanced Processing")
 
     # Initialize session state for PDF
-    if 'uploaded_pdf' not in st.session_state:
-        st.session_state.uploaded_pdf = None
-    if 'pdf_page' not in st.session_state:
-        st.session_state.pdf_page = 0
+    if 'pdf_processor' not in st.session_state:
+        st.session_state.pdf_processor = PDFProcessor()
+    if 'processing_results' not in st.session_state:
+        st.session_state.processing_results = None
+    if 'uploaded_pdf_name' not in st.session_state:
+        st.session_state.uploaded_pdf_name = None
 
-    # Create columns for PDF upload and info
+    # Create columns for PDF upload and results
     col1, col2 = st.columns([1, 2])
     
     with col1:
-        st.subheader("📄 PDF Upload")
+        st.subheader("📄 PDF Upload & Processing")
         uploaded_pdf = st.file_uploader("Upload a PDF file", type=["pdf"], key="pdf_uploader")
         
         if uploaded_pdf is not None:
-            # Read PDF info
-            try:
-                pdf_reader = PyPDF2.PdfReader(uploaded_pdf)
-                num_pages = len(pdf_reader.pages)
-                file_name = uploaded_pdf.name
-                file_size = uploaded_pdf.size if hasattr(uploaded_pdf, 'size') else None
-
-                st.success(f"**File:** {file_name}")
-                if file_size:
-                    st.info(f"**Size:** {file_size/1024:.2f} KB")
-                st.info(f"**Pages:** {num_pages}")
+            # Display basic file info
+            file_name = uploaded_pdf.name
+            file_size = uploaded_pdf.size if hasattr(uploaded_pdf, 'size') else None
+            
+            st.success(f"**File:** {file_name}")
+            if file_size:
+                st.info(f"**Size:** {file_size/1024:.2f} KB")
+            
+            # Processing button
+            if st.button("🚀 Process PDF with Docling", type="primary"):
+                with st.spinner("Processing PDF with Docling... This may take a few minutes."):
+                    try:
+                        # Save uploaded file to temporary location
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                            tmp_file.write(uploaded_pdf.getvalue())
+                            tmp_file_path = tmp_file.name
+                        
+                        # Process the PDF
+                        results = st.session_state.pdf_processor.process_pdf(
+                            tmp_file_path, 
+                            output_base_dir="output"
+                        )
+                        
+                        # Clean up temporary file
+                        import os
+                        os.unlink(tmp_file_path)
+                        
+                        # Store results in session state
+                        st.session_state.processing_results = results
+                        st.session_state.uploaded_pdf_name = file_name
+                        
+                        st.success(f"✅ PDF processed successfully in {results['processing_time']:.2f} seconds!")
+                        st.rerun()
+                        
+                    except Exception as e:
+                        st.error(f"❌ Error processing PDF: {str(e)}")
+            
+            # Show processing status if available
+            if st.session_state.processing_results and st.session_state.uploaded_pdf_name == file_name:
+                results = st.session_state.processing_results
+                st.subheader("📊 Processing Results")
                 
-                # Update session state
-                if st.session_state.uploaded_pdf != uploaded_pdf:
-                    st.session_state.uploaded_pdf = uploaded_pdf
-                    st.session_state.pdf_page = 0
-                    
-            except Exception as e:
-                st.error(f"Failed to read PDF: {str(e)}")
+                col_metrics1, col_metrics2 = st.columns(2)
+                with col_metrics1:
+                    st.metric("Pages", results['page_count'])
+                    st.metric("Tables", results['table_count'])
+                with col_metrics2:
+                    st.metric("Pictures", results['picture_count'])
+                    st.metric("Time (s)", f"{results['processing_time']:.2f}")
+                
+                # Output location
+                st.info(f"📁 **Output saved to:** `{results['output_dir']}`")
 
     with col2:
-        st.subheader("📖 PDF Viewer")
-        if uploaded_pdf is not None:
-            try:
-                pdf_reader = PyPDF2.PdfReader(uploaded_pdf)
-                num_pages = len(pdf_reader.pages)
-
-                # Page selector
-                page_num = st.number_input("Page", min_value=1, max_value=num_pages, value=st.session_state.pdf_page+1, key="pdf_page_selector")
-                st.session_state.pdf_page = page_num - 1
-
-                # Display page text
-                page = pdf_reader.pages[st.session_state.pdf_page]
-                text = page.extract_text() or "[No extractable text on this page]"
-                st.text_area(f"Page {page_num} Text", text, height=400)
-            except Exception as e:
-                st.error(f"Error displaying PDF: {str(e)}")
+        st.subheader("📖 Processing Results & Viewer")
+        
+        if st.session_state.processing_results and uploaded_pdf is not None:
+            results = st.session_state.processing_results
+            
+            # Create tabs for different output types
+            view_tab1, view_tab2, view_tab3, view_tab4 = st.tabs(["📄 Text", "🖼️ Images", "📊 Files", "🔍 Raw Data"])
+            
+            with view_tab1:
+                st.subheader("Extracted Text Content")
+                try:
+                    # Try to load the text file
+                    text_file = results.get('text_file')
+                    if text_file and os.path.exists(text_file):
+                        with open(text_file, 'r', encoding='utf-8') as f:
+                            text_content = f.read()
+                        st.text_area("Document Text", text_content, height=400)
+                    else:
+                        st.info("Text file not found. Try processing the PDF again.")
+                except Exception as e:
+                    st.error(f"Error loading text content: {str(e)}")
+            
+            with view_tab2:
+                st.subheader("Extracted Images")
+                
+                # Create sub-tabs for different image types
+                img_tab1, img_tab2, img_tab3 = st.tabs(["📄 Pages", "📊 Tables", "🖼️ Pictures"])
+                
+                with img_tab1:
+                    st.write("**Page Images:**")
+                    if results['page_images']:
+                        # Show page selector for navigation
+                        if len(results['page_images']) > 1:
+                            page_to_show = st.selectbox(
+                                "Select page to view:",
+                                range(1, len(results['page_images']) + 1),
+                                format_func=lambda x: f"Page {x}",
+                                key="page_selector"
+                            ) - 1
+                        else:
+                            page_to_show = 0
+                        
+                        # Display selected page
+                        if page_to_show < len(results['page_images']):
+                            img_path = results['page_images'][page_to_show]
+                            if os.path.exists(img_path):
+                                st.image(img_path, caption=f"Page {page_to_show + 1}", use_container_width=True)
+                            else:
+                                st.error(f"Page image not found: {img_path}")
+                        
+                        # Show navigation info
+                        st.info(f"📄 Total pages: {len(results['page_images'])}")
+                        
+                        # Show thumbnails for quick navigation (first 5 pages)
+                        if len(results['page_images']) > 1:
+                            st.write("**Page Thumbnails:**")
+                            cols = st.columns(min(5, len(results['page_images'])))
+                            for i, img_path in enumerate(results['page_images'][:5]):
+                                if os.path.exists(img_path):
+                                    with cols[i]:
+                                        st.image(img_path, caption=f"P{i+1}", use_container_width=True)
+                            
+                            if len(results['page_images']) > 5:
+                                st.caption(f"... and {len(results['page_images']) - 5} more pages")
+                    else:
+                        st.info("No page images extracted.")
+                
+                with img_tab2:
+                    st.write("**Table Images:**")
+                    if results['table_images']:
+                        # Show all tables in a grid layout
+                        if len(results['table_images']) == 1:
+                            img_path = results['table_images'][0]
+                            if os.path.exists(img_path):
+                                st.image(img_path, caption="Table 1", use_container_width=True)
+                        else:
+                            # Show tables in a 2-column grid for better viewing
+                            for i in range(0, len(results['table_images']), 2):
+                                cols = st.columns(2)
+                                for j, col in enumerate(cols):
+                                    if i + j < len(results['table_images']):
+                                        img_path = results['table_images'][i + j]
+                                        if os.path.exists(img_path):
+                                            with col:
+                                                st.image(img_path, caption=f"Table {i + j + 1}", use_container_width=True)
+                        
+                        st.info(f"📊 Total tables extracted: {len(results['table_images'])}")
+                    else:
+                        st.info("No table images extracted.")
+                
+                with img_tab3:
+                    st.write("**Picture/Figure Images:**")
+                    if results['picture_images']:
+                        # Show all pictures in a grid layout
+                        if len(results['picture_images']) == 1:
+                            img_path = results['picture_images'][0]
+                            if os.path.exists(img_path):
+                                st.image(img_path, caption="Picture 1", use_container_width=True)
+                        else:
+                            # Show pictures in a 2-column grid for better viewing
+                            for i in range(0, len(results['picture_images']), 2):
+                                cols = st.columns(2)
+                                for j, col in enumerate(cols):
+                                    if i + j < len(results['picture_images']):
+                                        img_path = results['picture_images'][i + j]
+                                        if os.path.exists(img_path):
+                                            with col:
+                                                st.image(img_path, caption=f"Picture {i + j + 1}", use_container_width=True)
+                        
+                        st.info(f"🖼️ Total pictures extracted: {len(results['picture_images'])}")
+                    else:
+                        st.info("No picture images extracted.")
+                
+                # Summary section at the bottom
+                st.markdown("---")
+                col_sum1, col_sum2, col_sum3 = st.columns(3)
+                with col_sum1:
+                    st.metric("📄 Pages", len(results.get('page_images', [])))
+                with col_sum2:
+                    st.metric("📊 Tables", len(results.get('table_images', [])))
+                with col_sum3:
+                    st.metric("🖼️ Pictures", len(results.get('picture_images', [])))
+            
+            with view_tab3:
+                st.subheader("Generated Files")
+                
+                # Markdown files
+                if results['markdown_files']:
+                    st.write("**Markdown Files:**")
+                    for md_file in results['markdown_files']:
+                        if os.path.exists(md_file):
+                            st.write(f"📝 `{os.path.basename(md_file)}`")
+                
+                # HTML files
+                if results['html_files']:
+                    st.write("**HTML Files:**")
+                    for html_file in results['html_files']:
+                        if os.path.exists(html_file):
+                            st.write(f"🌐 `{os.path.basename(html_file)}`")
+                
+                # Download buttons (if needed)
+                if results.get('text_file') and os.path.exists(results['text_file']):
+                    with open(results['text_file'], 'r', encoding='utf-8') as f:
+                        text_content = f.read()
+                    st.download_button(
+                        label="📥 Download Text",
+                        data=text_content,
+                        file_name=f"{results['pdf_name']}-text.txt",
+                        mime="text/plain"
+                    )
+            
+            with view_tab4:
+                st.subheader("Raw Processing Data")
+                st.json(results, expanded=False)
+        
         else:
-            st.info("Upload a PDF file to view it here.")
+            st.info("Upload and process a PDF file to view results here.")
+            st.markdown("""
+            **Docling Features:**
+            - 🔍 Advanced text extraction
+            - 🖼️ Image and figure extraction
+            - 📊 Table detection and extraction
+            - 📄 Multiple output formats (Markdown, HTML, Text)
+            - 🎯 High-quality OCR and layout analysis
+            """)

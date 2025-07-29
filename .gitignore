@@ -18,6 +18,10 @@ __pycache__/
 build/
 develop-eggs/
 dist/
+
+# PDF processing outputs
+output/
+pdf_processor/__pycache__/
 downloads/
 eggs/
 .eggs/
