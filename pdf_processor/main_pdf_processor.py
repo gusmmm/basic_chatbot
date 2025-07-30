@@ -8,6 +8,7 @@ from docling_core.types.doc import ImageRefMode, PictureItem, TableItem
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.document_converter import DocumentConverter, PdfFormatOption
+from .jsonizer import process_pdf_markdown_to_json
 
 # Set up logging
 _log = logging.getLogger(__name__)
@@ -142,6 +143,16 @@ class PDFProcessor:
                 fp.write(conv_res.document.export_to_text())
             results["text_file"] = str(txt_filename)
             _log.info(f"Saved text: {txt_filename}")
+            
+            # Generate JSON files from the markdown with images
+            try:
+                _log.info("Generating JSON files from markdown...")
+                json_files = process_pdf_markdown_to_json(md_embedded_filename, output_dir)
+                results["json_files"] = json_files
+                _log.info(f"Generated JSON files: {list(json_files.keys())}")
+            except Exception as e:
+                _log.error(f"Error generating JSON files: {str(e)}")
+                results["json_files"] = {}
             
             end_time = time.time() - start_time
             results["processing_time"] = end_time

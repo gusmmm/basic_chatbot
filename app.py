@@ -494,6 +494,73 @@ with tab2:
                         if os.path.exists(html_file):
                             st.write(f"🌐 `{os.path.basename(html_file)}`")
                 
+                # JSON files
+                if results.get('json_files'):
+                    st.write("**JSON Files:**")
+                    json_files = results['json_files']
+                    
+                    # Create expandable sections for each JSON file type
+                    if json_files.get('text_tables') and os.path.exists(json_files['text_tables']):
+                        with st.expander("📊 Text & Tables JSON", expanded=False):
+                            st.write(f"📄 `{os.path.basename(json_files['text_tables'])}`")
+                            st.caption("Contains: Document text and tables (no images, references, or bibliography)")
+                            try:
+                                with open(json_files['text_tables'], 'r', encoding='utf-8') as f:
+                                    json_data = json.load(f)
+                                    st.metric("Sections", json_data.get('statistics', {}).get('total_sections', 0))
+                                    st.metric("Tables", json_data.get('statistics', {}).get('total_tables', 0))
+                            except Exception as e:
+                                st.error(f"Error reading JSON: {e}")
+                    
+                    if json_files.get('full_content') and os.path.exists(json_files['full_content']):
+                        with st.expander("🖼️ Full Content JSON", expanded=False):
+                            st.write(f"📄 `{os.path.basename(json_files['full_content'])}`")
+                            st.caption("Contains: Complete document with images, text, tables, and references")
+                            try:
+                                with open(json_files['full_content'], 'r', encoding='utf-8') as f:
+                                    json_data = json.load(f)
+                                    stats = json_data.get('statistics', {})
+                                    col1, col2, col3, col4 = st.columns(4)
+                                    with col1:
+                                        st.metric("Sections", stats.get('total_sections', 0))
+                                    with col2:
+                                        st.metric("Tables", stats.get('total_tables', 0))
+                                    with col3:
+                                        st.metric("Images", stats.get('total_images', 0))
+                                    with col4:
+                                        st.metric("References", stats.get('total_references', 0))
+                            except Exception as e:
+                                st.error(f"Error reading JSON: {e}")
+                    
+                    if json_files.get('metadata_references') and os.path.exists(json_files['metadata_references']):
+                        with st.expander("📚 Metadata & References JSON", expanded=False):
+                            st.write(f"📄 `{os.path.basename(json_files['metadata_references'])}`")
+                            st.caption("Contains: Document metadata and structured references")
+                            try:
+                                with open(json_files['metadata_references'], 'r', encoding='utf-8') as f:
+                                    json_data = json.load(f)
+                                    ref_stats = json_data.get('reference_statistics', {})
+                                    metadata = json_data.get('metadata', {})
+                                    
+                                    if metadata.get('title'):
+                                        st.write(f"**Title:** {metadata['title']}")
+                                    
+                                    col1, col2 = st.columns(2)
+                                    with col1:
+                                        st.metric("Total References", ref_stats.get('total_references', 0))
+                                        st.metric("With DOI", ref_stats.get('references_with_doi', 0))
+                                    with col2:
+                                        st.metric("With PMID", ref_stats.get('references_with_pmid', 0))
+                                        
+                                    # Show reference types breakdown
+                                    ref_types = ref_stats.get('reference_types', {})
+                                    if ref_types:
+                                        st.write("**Reference Types:**")
+                                        for ref_type, count in ref_types.items():
+                                            st.write(f"- {ref_type.replace('_', ' ').title()}: {count}")
+                            except Exception as e:
+                                st.error(f"Error reading JSON: {e}")
+                
                 # Download buttons (if needed)
                 if results.get('text_file') and os.path.exists(results['text_file']):
                     with open(results['text_file'], 'r', encoding='utf-8') as f:

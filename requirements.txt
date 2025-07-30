@@ -4,3 +4,5 @@ streamlit
 # PDF processing with Docling
 docling
 python-dotenv
+# JSON processing and validation
+pydantic
